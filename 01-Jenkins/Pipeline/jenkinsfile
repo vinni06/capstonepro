@@ -18,6 +18,11 @@ node {
  stage('Maven-Compile') {
    sh label: '', script: 'mvn compile'
   }
+   stage('Sonar Analysis'){
+        withSonarQubeEnv('Sonarqube'){
+         sh 'mvn sonar:sonar'
+        }
+        }
   
    stage('Maven-Test') {
    sh label: '', script: 'mvn test'
@@ -26,10 +31,21 @@ node {
    stage('Maven-Package') {
    sh label: '', script: 'mvn package'
   }
+   
   
    stage('Archive-Artifacts') {
    archiveArtifacts 'target/*.war'
   }
+   stage('Jfrog Artifacory Upload') {
+        def server= Artifactory.server 'Artifactory'
+                    def uploadSpec= """{
+                        "files": [{
+                        "pattern": "target/*.war",
+                        "target": "libs-snapshot-local"}]
+                    }"""
+        server.upload(uploadSpec)
+        
+        }
    stage('Docker-Stage-Deployment') {
    sh label: '', script: 'docker-compose up -d --build'
   }
