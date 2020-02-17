@@ -1,0 +1,78 @@
+node {
+ try  {
+  notify('Job Started') 
+
+     
+  stage('Git-Checkout') {
+   git 'https://github.com/vinni06/capstonepro.git'
+  }
+    
+ def project_path="petclinic/"
+ 
+ dir(project_path) {
+    
+  stage('Maven-Clean') {
+   sh label: '', script: 'mvn clean'
+  }
+    
+ stage('Maven-Compile') {
+   sh label: '', script: 'mvn compile'
+  }
+  
+   stage('Maven-Test') {
+   sh label: '', script: 'mvn test'
+  }
+  
+  stage('Sonar Analysis') {
+   withSonarQubeEnv('SonarQube') {
+        sh "mvn sonar:sonar"
+    }
+  }
+  /*
+  stage('Sonar - Quality Gate') {
+  	timeout(time: 1, unit: 'MINUTES') {
+                waitForQualityGate abortPipeline: true
+            }
+  }
+  */
+   stage('Maven-Package') {
+   sh label: '', script: 'mvn package'
+  }
+  
+   stage('Archive-Artifacts') {
+   archiveArtifacts 'target/*.war'
+  }
+   
+   stage('Jfrog Artifacory Upload') {
+        def server= Artifactory.server 'Artifactory'
+                    def uploadSpec= """{
+                        "files": [{
+                        "pattern": "target/*.war",
+                        "target": "capstoneproject"}]
+                    }"""
+        server.upload(uploadSpec)
+        
+        }
+	stage('Downstream Build -- Docker Deployment'){
+	 build 'pipe-Docker'
+	}
+}  
+
+ notify('Job Completed')   
+} catch (err) {
+  notify("Error ${err}")
+  currentBuild.result = 'FAILURE'
+}
+
+}
+
+
+
+def notify(status){
+    emailext (
+	to: "emmanenivineel6@gmail.com",
+	subject: "${status}: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+	 body: """<p>${status}: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
+	<p>Check console output at <a href='${env.BUILD_URL}'>${env.JOB_NAME} [${env.BUILD_NUMBER}]</a></p>""",
+		)
+	}
